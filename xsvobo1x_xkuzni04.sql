@@ -1,20 +1,27 @@
+ /* ************ xsvobo1x_xkuzni04.sql ************ *
+ *              Databázové systémy (IDS)            *
+ *    Lucie Svobodová, xsvobo1x@stud.fit.vutbr.cz   *
+ *      Jakub Kuzník, xkuzni04@stud.fit.vutbr.cz    *
+ *                 FIT VUT 2021/2022                *
+ *  *********************************************** */
+
 /* DROP TABLES */
-DROP TABLE Platba CASCADE CONSTRAINTS;
-DROP TABLE Objednavka_obsahuje_pokrm_napoj CASCADE CONSTRAINTS;
-DROP TABLE Objednavka CASCADE CONSTRAINTS;
-DROP TABLE Rezervace_stolu CASCADE CONSTRAINTS;
-DROP TABLE Rezervace CASCADE CONSTRAINTS;
-DROP TABLE Ingredience_v_pokrmu_napoji CASCADE CONSTRAINTS;
-DROP TABLE Pokrm_napoj CASCADE CONSTRAINTS;
-DROP TABLE Ingredience_obsahuje_alergen CASCADE CONSTRAINTS;
-DROP TABLE Alergen CASCADE CONSTRAINTS;
-DROP TABLE Ingredience CASCADE CONSTRAINTS;
-DROP TABLE Telefon CASCADE CONSTRAINTS;
-DROP TABLE Zamestnanec CASCADE CONSTRAINTS;
-DROP TABLE Pozice CASCADE CONSTRAINTS;
-DROP TABLE Zakaznik CASCADE CONSTRAINTS;
-DROP TABLE Stul CASCADE CONSTRAINTS;
-DROP TABLE Mistnost CASCADE CONSTRAINTS;
+DROP TABLE Platba;
+DROP TABLE Objednavka_obsahuje_pokrm_napoj;
+DROP TABLE Objednavk;
+DROP TABLE Rezervace_stolu;
+DROP TABLE Rezervace;
+DROP TABLE Ingredience_v_pokrmu_napoji;
+DROP TABLE Pokrm_napoj;
+DROP TABLE Ingredience_obsahuje_alergen;
+DROP TABLE Alergen;
+DROP TABLE Ingredience;
+DROP TABLE Telefon;
+DROP TABLE Zamestnanec;
+DROP TABLE Pozice;
+DROP TABLE Zakaznik;
+DROP TABLE Stul;
+DROP TABLE Mistnost;
 
 
 /* CREATE EMPTY TABLES */
@@ -80,7 +87,7 @@ CREATE TABLE Ingredience (
 
 CREATE TABLE Alergen (
     ID_alergen      NUMERIC(2, 0),
-    nazev           VARCHAR(32) NOT NULL,
+    nazev           varchar(32) NOT NULL,
     CONSTRAINT PK_alergen PRIMARY KEY (ID_alergen)
 );
 
