@@ -8,7 +8,7 @@
 /* DROP TABLES */
 DROP TABLE Platba;
 DROP TABLE Objednavka_obsahuje_pokrm_napoj;
-DROP TABLE Objednavk;
+DROP TABLE Objednavka;
 DROP TABLE Rezervace_stolu;
 DROP TABLE Rezervace;
 DROP TABLE Ingredience_v_pokrmu_napoji;
