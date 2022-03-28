@@ -44,23 +44,23 @@ CREATE TABLE Zakaznik (
     ID_zakaznik     NUMBER GENERATED ALWAYS as IDENTITY(START with 1 INCREMENT by 1),
     jmeno           VARCHAR(32) NOT NULL,
     prijmeni        VARCHAR(32) NOT NULL,
-    telefon         VARCHAR(32) NOT NULL CONSTRAINT zakaznik_telefon_format CHECK (LENGTH(telefon) = 9),
+    telefon         VARCHAR(16) NOT NULL CONSTRAINT zakaznik_telefon_format CHECK (LENGTH(telefon) = 9),
     email           VARCHAR(64) CONSTRAINT email_format CHECK (REGEXP_LIKE (email, '^\w+(\.\w+)*@\w+(\.\w+)+$')),
     CONSTRAINT PK_zakaznik PRIMARY KEY (ID_zakaznik)
 );
 
 CREATE TABLE Pozice (
-    zkratka_pozice VARCHAR(32),
+    zkratka_pozice VARCHAR(8),
     nazev_pozice   VARCHAR(255) UNIQUE NOT NULL,
     CONSTRAINT PK_pozice PRIMARY KEY (zkratka_pozice)
 );
 
 CREATE TABLE Zamestnanec (
     ID_zamestnanec  NUMBER GENERATED ALWAYS as IDENTITY(START with 1 INCREMENT by 1),
-    zkratka_pozice  VARCHAR(32)    NOT NULL,
+    zkratka_pozice  VARCHAR(8)    NOT NULL,
     jmeno           VARCHAR(32)    NOT NULL,
     prijmeni        VARCHAR(32)    NOT NULL,
-    rodne_cislo     VARCHAR(32)    NOT NULL         /* zadáváno bez lomítka */
+    rodne_cislo     VARCHAR(16)    NOT NULL         /* zadáváno bez lomítka */
                          CONSTRAINT rc_format  CHECK (REGEXP_LIKE (rodne_cislo, '^(\d{9}|\d{10})$')
                                                 AND (MOD(TO_NUMBER(rodne_cislo), 11) = 0)),
     bankovni_ucet   VARCHAR(64)    NOT NULL
@@ -72,9 +72,9 @@ CREATE TABLE Zamestnanec (
 );
 
 CREATE TABLE Telefon (
-    poradove_cislo  NUMERIC(2,0)  DEFAULT '1',
+    poradove_cislo  NUMERIC(3,0)  DEFAULT '1',
     ID_zamestnanec  NUMBER        NOT NULL,
-    telefon         VARCHAR(32)   NOT NULL  CONSTRAINT telefon_format CHECK (LENGTH(telefon) = 9),
+    telefon         VARCHAR(16)   NOT NULL  CONSTRAINT telefon_format CHECK (LENGTH(telefon) = 9),
     CONSTRAINT PK_telefon_zamestnanec  PRIMARY KEY (poradove_cislo, ID_zamestnanec),
     CONSTRAINT FK_tel_zamestnanec      FOREIGN KEY (ID_zamestnanec) REFERENCES Zamestnanec
 );
@@ -104,7 +104,6 @@ CREATE TABLE Ingredience_obsahuje_alergen (
                                           ___|___
                                          |       |
                                        Pokrm    Napoj
-
    Zvolili jsme způsob reprezentace pomocí jedné tabulky (Pokrm_napoj) pro obě
    specializace, protože specializace Pokrm a Napoj jsou disjunktní a totální.
 */
@@ -113,7 +112,7 @@ CREATE TABLE Pokrm_napoj (
     nazev           VARCHAR(255) NOT NULL,
     typ             VARCHAR(8)   DEFAULT 'pokrm' NOT NULL
                         CONSTRAINT pokrm_napoj_typ CHECK (typ IN ('pokrm', 'nápoj')),
-    doba_pripravy   VARCHAR(32),
+    doba_pripravy   VARCHAR(16),
     hmotnost_gram   INT CHECK (hmotnost_gram > 0),
     obsah_alkoholu  NUMERIC(5, 2) CHECK (obsah_alkoholu >= 0.0),
     objem_ml        INT CHECK (objem_ml > 0),
