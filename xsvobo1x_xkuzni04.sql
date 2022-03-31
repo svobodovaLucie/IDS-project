@@ -376,6 +376,34 @@ WHERE Z.ID_zakaznik = O.ID_zakaznik
 AND NOT EXISTS (SELECT *
                 FROM Rezervace R
                 WHERE Z.ID_zakaznik = R.ID_zakaznik);
+  
+/* Dotaz zobrazí veškeré telefony jednotlivých zaměstnanců, kteří jsou kuchaři *
+ * - Spojení většího počtu tabulek */
+SELECT Z.jmeno, Z.prijmeni, TE.telefon, Po.nazev_pozice
+FROM Zamestnanec Z, Telefon TE, Pozice Po
+WHERE Z.zkratka_pozice='kuch' AND Po.zkratka_pozice = Z.zkratka_pozice;
+
+/* Dotaz zobrazí jméno a příjmení zaměstnance, který provedl rezervaci v určíté datum. *
+ * - Spojení dvou tabulek */
+SELECT R.ID_rezervace, Z.jmeno, Z.prijmeni, R.datum_rezervace
+FROM Zamestnanec Z, Rezervace R 
+WHERE Z.ID_zamestnanec = R.ID_zamestnanec AND R.datum_rezervace='27-MAR-2022';
+
+/* Dotaz zobrazí veškeré pokrmy, které obsahují alergen VEJCE nebo MLEKO *
+ * - použití predikátu IN */
+SELECT P.nazev, A.nazev
+FROM Pokrm_napoj P, Ingredience_v_pokrmu_napoji IvP, Ingredience_obsahuje_alergen IoA, Alergen A
+WHERE IvP.ID_ingredience = IoA.ID_ingredience AND IoA.ID_alergen = A.ID_alergen
+        AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj AND 
+        A.nazev IN ('VEJCE', 'MLÉKO');
+
+/* Dotaz zobrazí veškeré stoly, které nejsou pro 2, nebo 4 osoby a jejich jsou místnosti*
+ * - Spojení více tabulek, použití predikatu IN */
+SELECT S.cislo_stolu, S.pocet_mist, S.cislo_mistnosti ,M.nazev 
+FROM Stul S, Mistnost M
+WHERE S.cislo_mistnosti = M.cislo_mistnosti AND S.pocet_mist NOT IN (2,4);
+
+?/
 
 
 /* Dotaz vypočte celkovou cenu jednotlivých objednávek */
