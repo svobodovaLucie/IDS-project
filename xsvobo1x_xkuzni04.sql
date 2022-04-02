@@ -377,14 +377,15 @@ WHERE IvP.ID_ingredience = IoA.ID_ingredience AND IoA.ID_alergen = A.ID_alergen
         AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj AND 
         A.nazev IN ('VEJCE', 'MLÉKO');
 
-/* Dotaz zobrazí počet stolů, které nejsou pro 2 nebo 4 osoby *
+/* Dotaz zobrazí stoly, které nejsou pro 2 nebo 4 osoby       *
  * - použití predikátu IN s vnořeným SELECTEM                 */
-SELECT COUNT(M.nazev) 
-FROM Mistnost M
-WHERE EXISTS (SELECT *
-            FROM Stul S
-            WHERE S.pocet_mist IN (2,4));
+SELECT M.cislo_mistnosti, M.nazev, S.cislo_stolu, S.pocet_mist 
+FROM Mistnost M, Stul S
+WHERE S.pocet_mist IN (SELECT S.pocet_mist
+                            FROM Stul S
+                            Where S.pocet_mist NOT IN('2','4'))
+ORDER BY M.nazev;
+                      
                         
-                        
-                        
+
 
