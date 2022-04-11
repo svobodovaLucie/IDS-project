@@ -388,12 +388,3 @@ WHERE S.cislo_mistnosti = M.cislo_mistnosti
                                     WHERE M.cislo_mistnosti = S.cislo_mistnosti
                                     AND S.pocet_mist = 2)
 ORDER BY M.cislo_mistnosti;
-
-/* Dotaz zobrazí veškeré pokrmy, které obsahují alergen VEJCE nebo MLEKO *
- * - použití predikátu IN s množinou konstantních dat                    */
-SELECT P.nazev pokrm, A.nazev alergen
-FROM Pokrm_napoj P, Ingredience_v_pokrmu_napoji IvP, Ingredience_obsahuje_alergen IoA, Alergen A
-WHERE IvP.ID_ingredience = IoA.ID_ingredience AND IoA.ID_alergen = A.ID_alergen
-        AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj
-        AND A.nazev IN ('VEJCE', 'MLÉKO')
-ORDER BY P.nazev;
