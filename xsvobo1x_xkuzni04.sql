@@ -62,7 +62,7 @@ CREATE TABLE Zamestnanec (
     zkratka_pozice  VARCHAR(8)    NOT NULL,
     jmeno           VARCHAR(32)    NOT NULL,
     prijmeni        VARCHAR(32)    NOT NULL,
-    rodne_cislo     VARCHAR(16)    NOT NULL         /* zadáváno bez lomítka */
+    rodne_cislo     VARCHAR(16)    NOT NULL   UNIQUE      /* zadáváno bez lomítka */
                          CONSTRAINT rc_format  CHECK (REGEXP_LIKE (rodne_cislo, '^(\d{9}|\d{10})$')
                                                 AND (MOD(TO_NUMBER(rodne_cislo), 11) = 0)),
     bankovni_ucet   VARCHAR(64)    NOT NULL
@@ -233,7 +233,7 @@ VALUES ('rec', 'Michaela', 'Kárová', '8660010656', '357698-9775654567/6210', '
 
 INSERT INTO Telefon (ID_zamestnanec, telefon)
 VALUES (1, '746358074');
-INSERT INTO Telefon
+INSERT INTO Telefon (poradove_cislo, ID_zamestnanec, telefon)
 VALUES (2, 1, '778875633');
 INSERT INTO Telefon (ID_zamestnanec, telefon)
 VALUES (2, '733725392');
@@ -314,6 +314,8 @@ INSERT INTO Objednavka_obsahuje_pokrm_napoj (ID_pokrm_napoj, ID_objednavka, poce
 VALUES (2, 1, 4);
 INSERT INTO Objednavka_obsahuje_pokrm_napoj (ID_pokrm_napoj, ID_objednavka)
 VALUES (2, 2);
+INSERT INTO Objednavka_obsahuje_pokrm_napoj (ID_pokrm_napoj, ID_objednavka)
+VALUES (4, 2);
 INSERT INTO Objednavka_obsahuje_pokrm_napoj (ID_pokrm_napoj, ID_objednavka, pocet)
 VALUES (1, 3, 2);
 
@@ -329,24 +331,27 @@ VALUES (2, 3, 256, 'hotovost');
 
 /* Dotaz zobrazí alergeny obsažené v jednotlivých pokrmech/nápojích. *
  * - spojení většího počtu tabulek                                   */
-SELECT P.nazev, A.nazev
+SELECT P.nazev pokrm, A.nazev alergen
 FROM Pokrm_napoj P, Ingredience_v_pokrmu_napoji IvP, Ingredience_obsahuje_alergen IoA, Alergen A
 WHERE IvP.ID_ingredience = IoA.ID_ingredience AND IoA.ID_alergen = A.ID_alergen
-        AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj;
+        AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj
+ORDER BY P.nazev;
 
 /* Dotaz zobrazí celkový počet jednotlivých pokrmů/nápojů v jednotlivých objednávkách. *
  * - klauzule GROUP BY s použitím agregační funkce SUM                                 */
-SELECT OoP.ID_objednavka, P.nazev, SUM(OoP.pocet) celkovy_pocet
+SELECT OoP.ID_objednavka, P.nazev pokrm, SUM(OoP.pocet) celkovy_pocet
 FROM Objednavka_obsahuje_pokrm_napoj OoP, Objednavka O, Pokrm_napoj P
 WHERE O.ID_objednavka = OoP.ID_objednavka AND OoP.ID_pokrm_napoj = P.ID_pokrm_napoj
-GROUP BY OoP.ID_objednavka, P.nazev;
+GROUP BY OoP.ID_objednavka, P.nazev
+ORDER BY OoP.ID_objednavka;
 
 /* Dotaz zobrazí počet rezervací jednotlivých zákazníků. *
  * - klauzule GROUP BY s použitím agregační funkce COUNT */
 SELECT Z.ID_zakaznik, Z.jmeno, Z.prijmeni, COUNT(R.ID_zakaznik) pocet_rezervaci
 FROM Rezervace R, Zakaznik Z
 WHERE R.ID_zakaznik = Z.ID_zakaznik
-GROUP BY Z.ID_zakaznik, Z.jmeno, Z.prijmeni;
+GROUP BY Z.ID_zakaznik, Z.jmeno, Z.prijmeni
+ORDER BY Z.ID_ZAKAZNIK;
 
 /* Dotaz zobrazí zákazníky, kteří nemají vytvořenou rezervaci, ale mají pouze objednávku. *
  * - použití predikátu EXISTS                                                             */
@@ -355,37 +360,40 @@ FROM Zakaznik Z, Objednavka O
 WHERE Z.ID_zakaznik = O.ID_zakaznik
 AND NOT EXISTS (SELECT *
                 FROM Rezervace R
-                WHERE Z.ID_zakaznik = R.ID_zakaznik);
+                WHERE Z.ID_zakaznik = R.ID_zakaznik)
+ORDER BY Z.ID_zakaznik;
   
 /* Dotaz zobrazí veškeré telefony jednotlivých zaměstnanců, kteří jsou kuchaři *
  * - spojení tří tabulek                                                       */
-SELECT Z.jmeno, Z.prijmeni, TE.telefon, Po.nazev_pozice
+SELECT Z.ID_zamestnanec, Z.jmeno, Z.prijmeni, TE.telefon
 FROM Zamestnanec Z, Telefon TE, Pozice Po
-WHERE Z.zkratka_pozice='kuch' AND Po.zkratka_pozice = Z.zkratka_pozice;
+WHERE TE.ID_zamestnanec = Z.ID_zamestnanec
+      AND Z.zkratka_pozice='kuch' AND Po.zkratka_pozice = Z.zkratka_pozice
+ORDER BY Z.ID_zamestnanec;
 
 /* Dotaz zobrazí jméno a příjmení zaměstnance, který provedl rezervaci dne 27. 3. 2022. *
  * - spojení dvou tabulek                                                               */
-SELECT R.ID_rezervace, Z.jmeno, Z.prijmeni, R.datum_rezervace
+SELECT Z.jmeno, Z.prijmeni, R.ID_rezervace
 FROM Zamestnanec Z, Rezervace R 
-WHERE Z.ID_zamestnanec = R.ID_zamestnanec AND R.datum_rezervace='27-MAR-2022';
+WHERE Z.ID_zamestnanec = R.ID_zamestnanec AND R.datum_rezervace='27-MAR-2022'
+ORDER BY R.ID_rezervace;
+
+/* Dotaz zobrazí místnosti, které neobsahují žádné stoly pro 2 osoby. *
+ * - použití predikátu IN s vnořeným SELECTEM                         */
+SELECT DISTINCT M.cislo_mistnosti, M.nazev nazev_mistnosti
+FROM Stul S, Mistnost M
+WHERE S.cislo_mistnosti = M.cislo_mistnosti
+      AND M.cislo_mistnosti NOT IN (SELECT M.cislo_mistnosti
+                                    FROM Mistnost M, Stul S
+                                    WHERE M.cislo_mistnosti = S.cislo_mistnosti
+                                    AND S.pocet_mist = 2)
+ORDER BY M.cislo_mistnosti;
 
 /* Dotaz zobrazí veškeré pokrmy, které obsahují alergen VEJCE nebo MLEKO *
- * - použití predikátu IN                                                */
-SELECT P.nazev, A.nazev
+ * - použití predikátu IN s množinou konstantních dat                    */
+SELECT P.nazev pokrm, A.nazev alergen
 FROM Pokrm_napoj P, Ingredience_v_pokrmu_napoji IvP, Ingredience_obsahuje_alergen IoA, Alergen A
 WHERE IvP.ID_ingredience = IoA.ID_ingredience AND IoA.ID_alergen = A.ID_alergen
-        AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj AND 
-        A.nazev IN ('VEJCE', 'MLÉKO');
-
-/* Dotaz zobrazí stoly, které nejsou pro 2 nebo 4 osoby       *
- * - použití predikátu IN s vnořeným SELECTEM                 */
-SELECT M.cislo_mistnosti, M.nazev, S.cislo_stolu, S.pocet_mist 
-FROM Mistnost M, Stul S
-WHERE S.pocet_mist IN (SELECT S.pocet_mist
-                            FROM Stul S
-                            Where S.pocet_mist NOT IN('2','4'))
-ORDER BY M.nazev;
-                      
-                        
-
-
+        AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj
+        AND A.nazev IN ('VEJCE', 'MLÉKO')
+ORDER BY P.nazev;
