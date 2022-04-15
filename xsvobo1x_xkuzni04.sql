@@ -1,4 +1,4 @@
-/* ****************************** xsvobo1x_xkuzni04.sql ****************************** *
+/* ******************************* xsvobo1x_xkuzni04.sql ****************************** *
  *                                Databázové systémy (IDS)                              *
  *                      Lucie Svobodová, xsvobo1x@stud.fit.vutbr.cz                     *
  *                        Jakub Kuzník, xkuzni04@stud.fit.vutbr.cz                      *
@@ -96,6 +96,7 @@ CREATE TABLE Alergen (
 CREATE TABLE Ingredience_obsahuje_alergen (
     ID_ingredience  NUMBER NOT NULL,
     ID_alergen      NUMBER NOT NULL,
+    CONSTRAINT PK_inal PRIMARY KEY (ID_Ingredience, ID_alergen),
     CONSTRAINT FK_inal_ingredience FOREIGN KEY (ID_ingredience) REFERENCES Ingredience,
     CONSTRAINT FK_inal_alergen     FOREIGN KEY (ID_alergen)     REFERENCES Alergen
 );
@@ -127,6 +128,7 @@ CREATE TABLE Ingredience_v_pokrmu_napoji (
     ID_pokrm_napoj  NUMBER NOT NULL,
     ID_ingredience  NUMBER NOT NULL,
     mnozstvi        INT CHECK (mnozstvi > 0),
+    CONSTRAINT PK_invpn PRIMARY KEY (ID_pokrm_napoj, ID_ingredience),
     CONSTRAINT FK_invpn_pokrm_napoj FOREIGN KEY (ID_pokrm_napoj) REFERENCES Pokrm_napoj,
     CONSTRAINT FK_invpn_ingredience FOREIGN KEY (ID_ingredience) REFERENCES Ingredience
 );
@@ -147,6 +149,7 @@ CREATE TABLE Rezervace_stolu (
     cislo_stolu     NUMERIC(3,0)   NOT NULL,
     cislo_mistnosti NUMBER         NOT NULL,
     ID_rezervace    NUMBER         NOT NULL,
+    CONSTRAINT PK_rezstolu PRIMARY KEY (cislo_stolu, cislo_mistnosti, ID_rezervace),
     CONSTRAINT FK_rezstolu_stul_mistnost    FOREIGN KEY (cislo_stolu, cislo_mistnosti)  REFERENCES Stul,
     CONSTRAINT FK_rezstolu_rezervace        FOREIGN KEY (ID_rezervace) REFERENCES Rezervace
 );
@@ -164,9 +167,10 @@ CREATE TABLE Objednavka (
 );
 
 CREATE TABLE Objednavka_obsahuje_pokrm_napoj (
-    ID_pokrm_napoj NUMBER    NOT NULL,
     ID_objednavka  NUMBER    NOT NULL,
+    ID_pokrm_napoj NUMBER    NOT NULL,
     pocet          NUMBER    DEFAULT ON NULL '1' CHECK (pocet >= 1),
+    CONSTRAINT PK_objpn PRIMARY KEY (ID_objednavka, ID_pokrm_napoj),
     CONSTRAINT FK_objpn_pokrm_napoj FOREIGN KEY (ID_pokrm_napoj) REFERENCES Pokrm_napoj,
     CONSTRAINT FK_objpn_objednavka  FOREIGN KEY (ID_objednavka)  REFERENCES Objednavka
 );
@@ -288,11 +292,11 @@ INSERT INTO Ingredience_v_pokrmu_napoji (ID_pokrm_napoj, ID_ingredience, mnozstv
 VALUES (2, 2, 100);
 
 INSERT INTO Rezervace (ID_zamestnanec, ID_zakaznik, datum_rezervace, cas_rezervace)
-VALUES (1, 1, '25-MAR-2022', DEFAULT);
+VALUES (1, 1, TO_DATE('25.03.2022', 'DD.MM.YYYY'), DEFAULT);
 INSERT INTO Rezervace (ID_zamestnanec, ID_zakaznik, datum_rezervace, cas_rezervace)
-VALUES (1, 1, '27-MAR-2022', INTERVAL '20:00' HOUR TO MINUTE);
+VALUES (1, 1, TO_DATE('27.03.2022', 'DD.MM.YYYY'), INTERVAL '20:00' HOUR TO MINUTE);
 INSERT INTO Rezervace (ID_zamestnanec, ID_zakaznik, datum_rezervace, cas_rezervace)
-VALUES (3, 2, '27-MAR-2022', INTERVAL '20:00' HOUR TO MINUTE);
+VALUES (3, 2, TO_DATE('27.03.2022', 'DD.MM.YYYY'), INTERVAL '20:00' HOUR TO MINUTE);
 
 INSERT INTO Rezervace_stolu (cislo_stolu, cislo_mistnosti, ID_rezervace)
 VALUES (2, 1, 2);
@@ -308,8 +312,8 @@ VALUES (3, 3);
 INSERT INTO Objednavka (ID_zamestnanec, ID_zakaznik)
 VALUES (3, 4);
 
-INSERT INTO Objednavka_obsahuje_pokrm_napoj (ID_pokrm_napoj, ID_objednavka)
-VALUES (2, 1);
+INSERT INTO Objednavka_obsahuje_pokrm_napoj (ID_pokrm_napoj, ID_objednavka, pocet)
+VALUES (2, 3, 4);
 INSERT INTO Objednavka_obsahuje_pokrm_napoj (ID_pokrm_napoj, ID_objednavka, pocet)
 VALUES (2, 1, 4);
 INSERT INTO Objednavka_obsahuje_pokrm_napoj (ID_pokrm_napoj, ID_objednavka)
@@ -337,21 +341,22 @@ WHERE IvP.ID_ingredience = IoA.ID_ingredience AND IoA.ID_alergen = A.ID_alergen
         AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj
 ORDER BY P.nazev;
 
-/* Dotaz zobrazí celkový počet jednotlivých pokrmů/nápojů v jednotlivých objednávkách. *
- * - klauzule GROUP BY s použitím agregační funkce SUM                                 */
-SELECT OoP.ID_objednavka, P.nazev pokrm, SUM(OoP.pocet) celkovy_pocet
-FROM Objednavka_obsahuje_pokrm_napoj OoP, Objednavka O, Pokrm_napoj P
-WHERE O.ID_objednavka = OoP.ID_objednavka AND OoP.ID_pokrm_napoj = P.ID_pokrm_napoj
-GROUP BY OoP.ID_objednavka, P.nazev
-ORDER BY OoP.ID_objednavka;
-
 /* Dotaz zobrazí počet rezervací jednotlivých zákazníků. *
  * - klauzule GROUP BY s použitím agregační funkce COUNT */
 SELECT Z.ID_zakaznik, Z.jmeno, Z.prijmeni, COUNT(R.ID_zakaznik) pocet_rezervaci
 FROM Rezervace R, Zakaznik Z
 WHERE R.ID_zakaznik = Z.ID_zakaznik
 GROUP BY Z.ID_zakaznik, Z.jmeno, Z.prijmeni
-ORDER BY Z.ID_ZAKAZNIK;
+ORDER BY Z.ID_zakaznik;
+
+/* Dotaz zobrazí celkovou částku zaplacenou za jednotlivé objednávky, které již byly zaplaceny.  *
+ * (systém umožňuje zaplatit jednu objednávku více platbami)                                     *
+ * - klauzule GROUP BY s použitím agregační funkce SUM                                           */
+SELECT O.ID_objednavka, SUM(P.castka) zaplacena_castka
+FROM Objednavka O, Platba P
+WHERE P.ID_objednavka = O.ID_objednavka
+GROUP BY O.ID_objednavka
+ORDER BY O.ID_objednavka;
 
 /* Dotaz zobrazí zákazníky, kteří nemají vytvořenou rezervaci, ale mají pouze objednávku. *
  * - použití predikátu EXISTS                                                             */
@@ -362,7 +367,7 @@ AND NOT EXISTS (SELECT *
                 FROM Rezervace R
                 WHERE Z.ID_zakaznik = R.ID_zakaznik)
 ORDER BY Z.ID_zakaznik;
-  
+
 /* Dotaz zobrazí veškeré telefony jednotlivých zaměstnanců, kteří jsou kuchaři *
  * - spojení tří tabulek                                                       */
 SELECT Z.ID_zamestnanec, Z.jmeno, Z.prijmeni, TE.telefon
@@ -374,8 +379,9 @@ ORDER BY Z.ID_zamestnanec;
 /* Dotaz zobrazí jméno a příjmení zaměstnance, který provedl rezervaci dne 27. 3. 2022. *
  * - spojení dvou tabulek                                                               */
 SELECT Z.jmeno, Z.prijmeni, R.ID_rezervace
-FROM Zamestnanec Z, Rezervace R 
-WHERE Z.ID_zamestnanec = R.ID_zamestnanec AND R.datum_rezervace='27-MAR-2022'
+FROM Zamestnanec Z, Rezervace R
+WHERE Z.ID_zamestnanec = R.ID_zamestnanec
+      AND R.datum_rezervace = TO_DATE('27.03.2022', 'DD.MM.YYYY')
 ORDER BY R.ID_rezervace;
 
 /* Dotaz zobrazí místnosti, které neobsahují žádné stoly pro 2 osoby. *
@@ -388,12 +394,3 @@ WHERE S.cislo_mistnosti = M.cislo_mistnosti
                                     WHERE M.cislo_mistnosti = S.cislo_mistnosti
                                     AND S.pocet_mist = 2)
 ORDER BY M.cislo_mistnosti;
-
-/* Dotaz zobrazí veškeré pokrmy, které obsahují alergen VEJCE nebo MLEKO *
- * - použití predikátu IN s množinou konstantních dat                    */
-SELECT P.nazev pokrm, A.nazev alergen
-FROM Pokrm_napoj P, Ingredience_v_pokrmu_napoji IvP, Ingredience_obsahuje_alergen IoA, Alergen A
-WHERE IvP.ID_ingredience = IoA.ID_ingredience AND IoA.ID_alergen = A.ID_alergen
-        AND P.ID_pokrm_napoj = IvP.ID_pokrm_napoj
-        AND A.nazev IN ('VEJCE', 'MLÉKO')
-ORDER BY P.nazev;
