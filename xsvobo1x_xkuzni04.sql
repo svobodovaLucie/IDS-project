@@ -24,6 +24,7 @@ DROP TABLE Zakaznik;
 DROP TABLE Stul;
 DROP TABLE Mistnost;
 
+DROP TRIGGER Kontrola_casu_rezervace;
 
 /* ******************************** VYTVOŘENÍ TABULEK ********************************* */
 
@@ -394,3 +395,269 @@ WHERE S.cislo_mistnosti = M.cislo_mistnosti
                                     WHERE M.cislo_mistnosti = S.cislo_mistnosti
                                     AND S.pocet_mist = 2)
 ORDER BY M.cislo_mistnosti;
+
+
+/* ************************************* PROCEDURY ************************************ */
+
+/* Procedura na výstup vypíše za zadanou objednávku účtenku (názvy objednaných jídel, *
+ * jejich počet, jednotlivé ceny a celkovou cenu).                                    */
+CREATE OR REPLACE PROCEDURE Uctenka(ID IN INT)
+IS
+    -- kurzor pro procházení pokrmů v objednávce se zadaným ID
+    CURSOR pokrmy IS   SELECT P.ID_pokrm_napoj, OoP.pocet, P.nazev, P.cena
+                        FROM Objednavka_obsahuje_pokrm_napoj OoP, Pokrm_napoj P
+                        WHERE OoP.ID_pokrm_napoj = P.ID_pokrm_napoj AND ID_Objednavka = ID;
+    -- právě načtený záznam
+    zaznam_pokrmu pokrmy%ROWTYPE;
+    -- celková cena objednávky
+    celkova_cena NUMBER;
+    -- cena za právě načtený pokrm
+    cena_za_jidlo NUMBER;
+    -- délka názvu pokrmu (použito pro zarovnání výpisu)
+    delka_nazvu NUMBER;
+BEGIN
+    -- tisk hlavičky účtenky
+    DBMS_OUTPUT.PUT_LINE('ID objednávky: ' || ID);
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------');
+    celkova_cena := 0;
+    -- procházení záznamů
+    OPEN pokrmy;
+    LOOP
+        -- načtení jednoho záznamu
+        FETCH pokrmy INTO zaznam_pokrmu;
+        
+        -- ukončovací podmínka
+        EXIT WHEN pokrmy%NOTFOUND;
+        
+        -- výpočet celkové ceny za daný pokrm (cena * počet)
+        cena_za_jidlo := zaznam_pokrmu.cena * zaznam_pokrmu.pocet;
+        -- přičtení k celkové ceně objednávky
+        celkova_cena := celkova_cena + cena_za_jidlo;
+        
+        -- výpis informací o daném pokrmu
+        -- výpis názvu
+        DBMS_OUTPUT.PUT(SUBSTR(zaznam_pokrmu.nazev, 1, 35));
+        -- vložení mezer kvůli zarovnání
+        delka_nazvu := LENGTH(zaznam_pokrmu.nazev);
+        IF delka_nazvu < 35 THEN
+            FOR i IN 1..(35-delka_nazvu) LOOP
+                DBMS_OUTPUT.PUT(' ');
+            END LOOP;
+        END IF;
+        
+        -- vložení celkové ceny za pokrm
+        DBMS_OUTPUT.PUT_LINE('  ' || cena_za_jidlo);
+        
+        -- výpis počtu x jednotková cena
+        DBMS_OUTPUT.PUT_LINE('    ' || zaznam_pokrmu.pocet  || 'x  ' || zaznam_pokrmu.cena);
+    END LOOP;
+    CLOSE pokrmy;
+    
+    -- výpis celkové ceny objednávky
+    DBMS_OUTPUT.PUT_LINE('-----------------------------------------');
+    DBMS_OUTPUT.PUT_LINE('Celkem:                          ' || celkova_cena || ' Kč');
+    
+    EXCEPTION
+        WHEN OTHERS THEN
+            RAISE_APPLICATION_ERROR(-20220, 'Chyba při tisku účtenky.');
+END;
+/
+
+/* Ukázka použití procedury Uctenka() */
+CALL Uctenka(3);
+
+
+/* Procedura vypíše na výstup informaci o procentu objednávek vytvořených zaměstnancem  *
+ * se zadaným ID. Pokud zaměstnanec nepracuje na pozici číšníka (a tedy nemůže vytvářet *
+ * objednávky), je na výstup tato informace vypsána.                                    */
+CREATE OR REPLACE PROCEDURE Vykonnost_zamestnance (ID IN INT)
+IS
+    -- kurzor pro načtení záznamu zaměstnance s ID
+    CURSOR zam IS SELECT * FROM Zamestnanec WHERE ID_zamestnanec = ID;
+    -- kurzor pro procházení všech objednávek
+    CURSOR objednavky IS SELECT O.*, Z.jmeno, Z.prijmeni FROM Objednavka O, Zamestnanec Z WHERE O.ID_zamestnanec = Z.ID_zamestnanec;
+    -- právě načtená objednávka
+    zaznam_objednavky objednavky%ROWTYPE;
+    -- hledaný zamestnanec
+    hledany_zamestnanec zam%ROWTYPE;
+    -- celkový počet objednávek
+    celkem_objednavek INT;
+    -- počet objednávek vytvořených hledaným zaměstnancem
+    zamestnanec_objednavek INT;
+    -- výjimka - zaměstnanec nebyl nalezen
+    ZAMESTNANEC_NENALEZEN EXCEPTION;
+    PRAGMA EXCEPTION_INIT(ZAMESTNANEC_NENALEZEN, -20033);
+    -- výjimka - zaměstnanec není číšník (nemůže tedy vytvářet objednávky)
+    NENI_CISNIK EXCEPTION;
+    PRAGMA EXCEPTION_INIT(NENI_CISNIK, -20034);
+BEGIN
+    -- načtení zaměstnance s ID = ID do proměnné hledany_zamestnanec
+    OPEN zam;
+    FETCH zam INTO hledany_zamestnanec;
+    IF zam%NOTFOUND THEN
+        CLOSE zam;
+        RAISE ZAMESTNANEC_NENALEZEN;
+    END IF;
+    CLOSE zam;
+    
+    -- pokud zaměstnanec nepracuje na pozici číšníka ('cis'), nemůže vytvářet objednávky
+    IF hledany_zamestnanec.zkratka_pozice != 'cis' THEN
+        RAISE NENI_CISNIK;
+    END IF;
+    
+    -- počítání vytvořených objednávek
+    celkem_objednavek := 0;
+    zamestnanec_objednavek := 0;
+    OPEN objednavky;
+    LOOP
+        FETCH objednavky INTO zaznam_objednavky;
+        EXIT WHEN objednavky%NOTFOUND;
+        celkem_objednavek := celkem_objednavek + 1;
+        IF zaznam_objednavky.ID_zamestnanec = ID THEN
+            zamestnanec_objednavek := zamestnanec_objednavek + 1;
+        END IF;
+    END LOOP;
+    CLOSE objednavky;
+    
+    -- výpis informací o zaměstnanci
+    DBMS_OUTPUT.PUT('Procento objednávek vytvořených zaměstnancem ' || hledany_zamestnanec.jmeno 
+                            || ' ' || hledany_zamestnanec.prijmeni || ' (ID=' || ID || '): ');
+    DBMS_OUTPUT.PUT_LINE((zamestnanec_objednavek/celkem_objednavek) * 100 || '%');
+    
+    -- ošetření výjimek
+    EXCEPTION
+        WHEN NENI_CISNIK THEN
+            DBMS_OUTPUT.PUT_LINE('Zaměstnanec ' || hledany_zamestnanec.jmeno || ' ' || hledany_zamestnanec.prijmeni
+                                || ' (ID=' || ID || ') nepracuje na pozici číšníka.');
+        WHEN ZERO_DIVIDE THEN
+            DBMS_OUTPUT.PUT_LINE('Nebyla nalezena žádná objednávka.');
+        WHEN ZAMESTNANEC_NENALEZEN THEN
+            DBMS_OUTPUT.PUT_LINE('Zaměstnanec s ID=' || ID || ' nebyl nalezen.');
+        WHEN OTHERS THEN
+            RAISE_APPLICATION_ERROR(-20022, 'Chyba při provádění procedury.');
+END;
+/
+
+/* Ukázka použití procedury Vykonnost_zamestnance() */
+-- vypíše procento vytvořených objednávek
+CALL Vykonnost_zamestnance(1);  
+-- zaměstnanec, který nepracuje na pozici číšníka
+CALL Vykonnost_zamestnance(2);  
+-- zaměstnanec, který neexistuje
+CALL Vykonnost_zamestnance(8);  
+
+
+/* ************************************* TRIGGERY ************************************* */
+
+/* Trigger přidá záznam do tabulky Zmeny_castek_plateb v případě změny částky provedené platby . */
+-- vytvoření tabulky pro ukládání informací o změnách
+DROP TABLE Zmeny_castek_plateb;
+CREATE TABLE Zmeny_castek_plateb (
+    uzivatel        VARCHAR(30), 
+    datum           DATE,
+    ID_platba       NUMBER,
+    stara_castka    NUMBER, 
+    nova_castka     NUMBER
+);
+
+-- vytvoření triggeru
+CREATE OR REPLACE TRIGGER Zmena_platby
+AFTER UPDATE OR DELETE OF castka ON Platba
+FOR EACH ROW
+BEGIN
+    -- vlozeni zaznamu o zmene platby do tabulky Zmeny_caste_plateb
+    INSERT INTO Zmeny_castek_plateb(uzivatel, datum, ID_platba, stara_castka, nova_castka)
+    VALUES (USER(), SYSDATE, :OLD.ID_platba, :OLD.castka, :NEW.castka);
+END;
+/
+
+/* Předvedení triggeru */
+-- aktualizace hodnoty v tabulce Platba
+UPDATE Platba
+SET castka = 50
+WHERE ID_platba=1;
+-- odstranění záznamu z tabulky Platba
+DELETE FROM Platba
+WHERE ID_platba = 2;
+-- záznamy o aktualizaci a odstranění byly vloženy do tabulky Zmeny_castek_plateb
+SELECT * FROM Zmeny_castek_plateb;
+
+
+/* Trigger při vložení nového záznamu do tabulky Rezervace zkontroluje, zda je  *
+ *  datum rezervace dnešní/budoucí. Pokud ne, je vyvolána výjimka.              */
+-- vytvoření triggeru
+CREATE OR REPLACE TRIGGER Kontrola_casu_rezervace
+AFTER INSERT ON Rezervace
+FOR EACH ROW
+DECLARE
+    NEPLATNE_DATUM EXCEPTION;
+BEGIN
+    -- kontrola, zda je datum minulé
+    IF :NEW.datum_rezervace < CURRENT_DATE THEN
+        RAISE NEPLATNE_DATUM;
+    END IF;
+EXCEPTION
+    WHEN NEPLATNE_DATUM THEN
+        RAISE_APPLICATION_ERROR(-20111, 'Neplatné datum rezervace (' 
+                        || TO_CHAR(:NEW.datum_rezervace, 'DD.MM.YYYY') || ').');
+END;
+/
+
+/* Předvedení triggeru */
+-- trigger nevyvolá výjimku - datum je v pořádku (není minulé)
+INSERT INTO Rezervace (ID_zamestnanec, ID_zakaznik, datum_rezervace)
+VALUES (1, 1, TO_DATE('01.07.2022', 'DD.MM.YYYY'));
+-- trigger vyvolá výjimku - zadané datum již bylo v minulosti
+INSERT INTO Rezervace (ID_zamestnanec, ID_zakaznik, datum_rezervace, cas_rezervace)
+VALUES (1, 1, TO_DATE('01.01.2020', 'DD.MM.YYYY'), DEFAULT);
+
+
+/* ************************************** PRÁVA *************************************** */
+-- udělení práv na práci s tabulkami
+GRANT ALL ON Mistnost TO xkuzni04;
+GRANT ALL ON Stul TO xkuzni04;
+GRANT ALL ON Zakaznik TO xkuzni04;
+GRANT ALL ON Pozice TO xkuzni04;
+GRANT ALL ON Zamestnanec TO xkuzni04;
+GRANT ALL ON Telefon TO xkuzni04;
+GRANT ALL ON Ingredience TO xkuzni04;
+GRANT ALL ON Alergen TO xkuzni04;
+GRANT ALL ON Ingredience_obsahuje_alergen TO xkuzni04;
+GRANT ALL ON Pokrm_napoj TO xkuzni04;
+GRANT ALL ON Ingredience_obsahuje_alergen TO xkuzni04;
+GRANT ALL ON Pokrm_napoj TO xkuzni04;
+GRANT ALL ON Ingredience_v_pokrmu_napoji TO xkuzni04;
+GRANT ALL ON Rezervace TO xkuzni04;
+GRANT ALL ON Rezervace_stolu TO xkuzni04;
+GRANT ALL ON Objednavka TO xkuzni04;
+GRANT ALL ON Objednavka_obsahuje_pokrm_napoj TO xkuzni04;
+GRANT ALL ON Platba TO xkuzni04;
+
+-- přidělení práv na procedury
+GRANT EXECUTE ON Uctenka TO xkuzni04;
+GRANT EXECUTE ON Vykonnost_zamestnance TO xkuzni04;
+
+
+/* ******************************* MATERIALIZOVANÝ POHLED ***************************** */
+DROP MATERIALIZED VIEW Jidelni_listek;
+
+-- vytvoření materializovaného pohledu
+CREATE MATERIALIZED VIEW Jidelni_listek
+REFRESH ON COMMIT 
+AS
+    SELECT nazev, cena 
+    FROM Pokrm_napoj;
+
+-- přidělení práv uživateli xkuzni04
+GRANT ALL ON Jidelni_listek TO xkuzni04;
+
+/* Ukázka funkce pohledu */
+-- původni stav
+SELECT * FROM Jidelni_listek;
+-- přidání položky
+INSERT INTO Pokrm_napoj (nazev, doba_pripravy, cena)
+VALUES ('Burger s trhaným vepřovým masem v BBQ omáčce', '20 minut', 180);
+-- zobrazení pohledu před příkazem COMMIT a po něm (pohled je aktualizován)
+SELECT * FROM Jidelni_listek;
+COMMIT;
+SELECT * FROM Jidelni_listek;
