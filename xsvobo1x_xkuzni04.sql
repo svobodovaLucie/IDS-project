@@ -661,3 +661,38 @@ VALUES ('Burger s trhaným vepřovým masem v BBQ omáčce', '20 minut', 180);
 SELECT * FROM Jidelni_listek;
 COMMIT;
 SELECT * FROM Jidelni_listek;
+
+
+
+/* ******************************* EXPLAIN PLAN + INDEX *****************************/
+-- Zahození optimalizačního indexu
+DROP INDEX id_zam  ON Objednavka(ID_zamestnanec);
+
+-- Vytvoř plán pro zobrazení dotazu
+EXPLAIN PLAN FOR
+    -- zobrazi pocet objednávek zamestnanců, kteří udělali více než jednu objednávku
+    SELECT COUNT(*) pocet_objednavek, jmeno, prijmeni, ID_zamestnanec
+    FROM Objednavka O NATURAL JOIN Zamestnanec ZA
+    GROUP BY ID_zamestnanec, jmeno, prijmeni, ID_zamestnanec;
+    HAVING COUNT(*) > 1
+    ORDER BY jmeno;) > 1;
+-- zobrazi Plánovací tabulku před optimalizací
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+-- Vytvoření indexu pro optimalizaci
+CREATE INDEX id_zam  ON Objednavka(ID_zamestnanec);
+
+-- druhy pokus
+EXPLAIN PLAN FOR
+    -- zobrazi pocet objednávek zamestnanců, kteří udělali více než jednu objednávku
+    SELECT COUNT(*) pocet_objednavek, jmeno, prijmeni, ID_zamestnanec
+    FROM Objednavka O NATURAL JOIN Zamestnanec ZA
+    GROUP BY ID_zamestnanec, jmeno, prijmeni, ID_zamestnanec;
+    HAVING COUNT(*) > 1
+    ORDER BY jmeno;
+
+-- zobrazi Plánovací tabulku optimalizovanou pomocí indexu
+SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
+
+
+
