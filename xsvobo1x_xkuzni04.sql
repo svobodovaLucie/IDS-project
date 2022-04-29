@@ -673,9 +673,9 @@ EXPLAIN PLAN FOR
     -- zobrazi pocet objednávek zamestnanců, kteří udělali více než jednu objednávku
     SELECT COUNT(*) pocet_objednavek, jmeno, prijmeni, ID_zamestnanec
     FROM Objednavka O NATURAL JOIN Zamestnanec ZA
-    GROUP BY ID_zamestnanec, jmeno, prijmeni, ID_zamestnanec;
+    GROUP BY ID_zamestnanec, jmeno, prijmeni, ID_zamestnanec
     HAVING COUNT(*) > 1
-    ORDER BY jmeno;) > 1;
+    ORDER BY jmeno;
 -- zobrazi Plánovací tabulku před optimalizací
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
 
@@ -687,12 +687,10 @@ EXPLAIN PLAN FOR
     -- zobrazi pocet objednávek zamestnanců, kteří udělali více než jednu objednávku
     SELECT COUNT(*) pocet_objednavek, jmeno, prijmeni, ID_zamestnanec
     FROM Objednavka O NATURAL JOIN Zamestnanec ZA
-    GROUP BY ID_zamestnanec, jmeno, prijmeni, ID_zamestnanec;
+    GROUP BY ID_zamestnanec, jmeno, prijmeni, ID_zamestnanec
     HAVING COUNT(*) > 1
     ORDER BY jmeno;
 
 -- zobrazi Plánovací tabulku optimalizovanou pomocí indexu
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
-
-
 
