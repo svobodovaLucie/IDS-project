@@ -425,15 +425,15 @@ BEGIN
     LOOP
         -- načtení jednoho záznamu
         FETCH pokrmy INTO zaznam_pokrmu;
-        
+
         -- ukončovací podmínka
         EXIT WHEN pokrmy%NOTFOUND;
-        
+
         -- výpočet celkové ceny za daný pokrm (cena * počet)
         cena_za_jidlo := zaznam_pokrmu.cena * zaznam_pokrmu.pocet;
         -- přičtení k celkové ceně objednávky
         celkova_cena := celkova_cena + cena_za_jidlo;
-        
+
         -- výpis informací o daném pokrmu
         -- výpis názvu
         DBMS_OUTPUT.PUT(SUBSTR(zaznam_pokrmu.nazev, 1, 35));
@@ -444,19 +444,19 @@ BEGIN
                 DBMS_OUTPUT.PUT(' ');
             END LOOP;
         END IF;
-        
+
         -- vložení celkové ceny za pokrm
         DBMS_OUTPUT.PUT_LINE('  ' || cena_za_jidlo);
-        
+
         -- výpis počtu x jednotková cena
         DBMS_OUTPUT.PUT_LINE('    ' || zaznam_pokrmu.pocet  || 'x  ' || zaznam_pokrmu.cena);
     END LOOP;
     CLOSE pokrmy;
-    
+
     -- výpis celkové ceny objednávky
     DBMS_OUTPUT.PUT_LINE('-----------------------------------------');
     DBMS_OUTPUT.PUT_LINE('Celkem:                          ' || celkova_cena || ' Kč');
-    
+
     EXCEPTION
         WHEN OTHERS THEN
             RAISE_APPLICATION_ERROR(-20220, 'Chyba při tisku účtenky.');
@@ -499,12 +499,12 @@ BEGIN
         RAISE ZAMESTNANEC_NENALEZEN;
     END IF;
     CLOSE zam;
-    
+
     -- pokud zaměstnanec nepracuje na pozici číšníka ('cis'), nemůže vytvářet objednávky
     IF hledany_zamestnanec.zkratka_pozice != 'cis' THEN
         RAISE NENI_CISNIK;
     END IF;
-    
+
     -- počítání vytvořených objednávek
     celkem_objednavek := 0;
     zamestnanec_objednavek := 0;
@@ -518,12 +518,12 @@ BEGIN
         END IF;
     END LOOP;
     CLOSE objednavky;
-    
+
     -- výpis informací o zaměstnanci
-    DBMS_OUTPUT.PUT('Procento objednávek vytvořených zaměstnancem ' || hledany_zamestnanec.jmeno 
+    DBMS_OUTPUT.PUT('Procento objednávek vytvořených zaměstnancem ' || hledany_zamestnanec.jmeno
                             || ' ' || hledany_zamestnanec.prijmeni || ' (ID=' || ID || '): ');
     DBMS_OUTPUT.PUT_LINE((zamestnanec_objednavek/celkem_objednavek) * 100 || '%');
-    
+
     -- ošetření výjimek
     EXCEPTION
         WHEN NENI_CISNIK THEN
@@ -540,11 +540,11 @@ END;
 
 /* Ukázka použití procedury Vykonnost_zamestnance() */
 -- vypíše procento vytvořených objednávek
-CALL Vykonnost_zamestnance(1);  
+CALL Vykonnost_zamestnance(1);
 -- zaměstnanec, který nepracuje na pozici číšníka
-CALL Vykonnost_zamestnance(2);  
+CALL Vykonnost_zamestnance(2);
 -- zaměstnanec, který neexistuje
-CALL Vykonnost_zamestnance(8);  
+CALL Vykonnost_zamestnance(8);
 
 
 /* ************************************* TRIGGERY ************************************* */
@@ -553,10 +553,10 @@ CALL Vykonnost_zamestnance(8);
 -- vytvoření tabulky pro ukládání informací o změnách
 DROP TABLE Zmeny_castek_plateb;
 CREATE TABLE Zmeny_castek_plateb (
-    uzivatel        VARCHAR(30), 
+    uzivatel        VARCHAR(30),
     datum           DATE,
     ID_platba       NUMBER,
-    stara_castka    NUMBER, 
+    stara_castka    NUMBER,
     nova_castka     NUMBER
 );
 
@@ -598,7 +598,7 @@ BEGIN
     END IF;
 EXCEPTION
     WHEN NEPLATNE_DATUM THEN
-        RAISE_APPLICATION_ERROR(-20111, 'Neplatné datum rezervace (' 
+        RAISE_APPLICATION_ERROR(-20111, 'Neplatné datum rezervace ('
                         || TO_CHAR(:NEW.datum_rezervace, 'DD.MM.YYYY') || ').');
 END;
 /
@@ -641,15 +641,18 @@ GRANT EXECUTE ON Vykonnost_zamestnance TO xkuzni04;
 /* ******************************* MATERIALIZOVANÝ POHLED ***************************** */
 DROP MATERIALIZED VIEW Jidelni_listek;
 
--- vytvoření materializovaného pohledu
+-- vytvoření materializovaného pohledu uživatelem xkuzni04
 CREATE MATERIALIZED VIEW Jidelni_listek
-REFRESH ON COMMIT 
+    CACHE                  -- db. postupně optimalizuje čtení z pohledu
+    BUILD IMMEDIATE        -- db. naplní pohled ihned po jeho vytvoření
+    REFRESH ON COMMIT      -- db. aktualizuje pohled po commitu master tabulek
+    ENABLE QUERY REWRITE   -- mat. pohled bude použit pro optimalizaci stejného dotazu
 AS
-    SELECT nazev, cena 
+    SELECT nazev, cena
     FROM Pokrm_napoj;
 
--- přidělení práv uživateli xkuzni04
-GRANT ALL ON Jidelni_listek TO xkuzni04;
+-- přidělení práv uživateli xsvobo1x
+GRANT ALL ON Jidelni_listek TO xsvobo1x;
 
 /* Ukázka funkce pohledu */
 -- původni stav
@@ -663,34 +666,33 @@ COMMIT;
 SELECT * FROM Jidelni_listek;
 
 
+/* ******************************** EXPLAIN PLAN + INDEX ****************************** */
+-- zahození optimalizačního indexu
+DROP INDEX id_zam;
 
-/* ******************************* EXPLAIN PLAN + INDEX *****************************/
--- Zahození optimalizačního indexu
-DROP INDEX id_zam  ON Objednavka(ID_zamestnanec);
-
--- Vytvoř plán pro zobrazení dotazu
+-- vytvoření plánu pro zobrazení dotazu
 EXPLAIN PLAN FOR
-    -- zobrazi pocet objednávek zamestnanců, kteří udělali více než jednu objednávku
+    -- zobrazí počet objednávek zamestnanců, kteří udělali více než jednu objednávku
     SELECT COUNT(*) pocet_objednavek, jmeno, prijmeni, ID_zamestnanec
     FROM Objednavka O NATURAL JOIN Zamestnanec ZA
     GROUP BY ID_zamestnanec, jmeno, prijmeni, ID_zamestnanec
     HAVING COUNT(*) > 1
     ORDER BY jmeno;
--- zobrazi Plánovací tabulku před optimalizací
+-- zobrazí Plánovací tabulku před optimalizací
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
 
--- Vytvoření indexu pro optimalizaci
+-- vytvoření indexu pro optimalizaci
 CREATE INDEX id_zam  ON Objednavka(ID_zamestnanec);
 
--- druhy pokus
+-- druhý pokus
 EXPLAIN PLAN FOR
-    -- zobrazi pocet objednávek zamestnanců, kteří udělali více než jednu objednávku
+    -- zobrazí pocet objednávek zamestnanců, kteří udělali více než jednu objednávku
     SELECT COUNT(*) pocet_objednavek, jmeno, prijmeni, ID_zamestnanec
     FROM Objednavka O NATURAL JOIN Zamestnanec ZA
     GROUP BY ID_zamestnanec, jmeno, prijmeni, ID_zamestnanec
     HAVING COUNT(*) > 1
     ORDER BY jmeno;
 
--- zobrazi Plánovací tabulku optimalizovanou pomocí indexu
+-- zobrazí Plánovací tabulku optimalizovanou pomocí indexu
 SELECT * FROM TABLE(DBMS_XPLAN.DISPLAY);
 
